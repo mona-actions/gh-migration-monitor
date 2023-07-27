@@ -19,27 +19,28 @@ type Migrations struct {
 	Log         []Migration
 }
 
-var migrations Migrations
-
-func (m Migrations) FetchMigrations() {
+func (m *Migrations) FetchMigrations() {
 	data := api.GetOrgMigrations()
 
 	for _, migration := range data {
-		switch migration.(map[string]interface{})["State"].(string) {
-		case "QUEUED", "IN_PROGRESS", "SUCCEEDED":
-			migrations.Queued = append(migrations.Queued, Migration{
-				Id:             migration.(map[string]interface{})["Id"].(string),
-				CreatedAt:      migration.(map[string]interface{})["CreatedAt"].(string),
-				RepositoryName: migration.(map[string]interface{})["RepositoryName"].(string),
-			})
+		repo := Migration{
+			Id:             migration["Id"],
+			CreatedAt:      migration["CreatedAt"],
+			RepositoryName: migration["RepositoryName"],
+		}
+
+		switch migration["State"] {
+		case "QUEUED":
+			m.Queued = append(m.Queued, repo)
+		case "IN_PROGRESS":
+			m.In_Progress = append(m.In_Progress, repo)
+		case "SUCCEEDED":
+			m.Succeeded = append(m.Succeeded, repo)
 		case "FAILED":
-			migrations.Failed = append(migrations.Failed, Migration{
-				Id:              migration.(map[string]interface{})["Id"].(string),
-				CreatedAt:       migration.(map[string]interface{})["CreatedAt"].(string),
-				FailureReason:   migration.(map[string]interface{})["FailureReason"].(string),
-				RepositoryName:  migration.(map[string]interface{})["RepositoryName"].(string),
-				MigrationLogUrl: migration.(map[string]interface{})["MigrationLogUrl"].(string),
-			})
+			repo.FailureReason = migration["FailureReason"]
+			repo.MigrationLogUrl = migration["MigrationLogUrl"]
+
+			m.Failed = append(m.Failed, repo)
 		}
 	}
 }

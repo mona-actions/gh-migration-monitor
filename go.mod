@@ -3,6 +3,7 @@ module github.com/mona-actions/gh-migration-monitor
 go 1.19
 
 require (
+	github.com/gofri/go-github-ratelimit v1.0.4
 	github.com/shurcooL/githubv4 v0.0.0-20230424031643-6cea62ecd5a9
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.16.0

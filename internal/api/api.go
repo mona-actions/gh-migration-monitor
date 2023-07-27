@@ -2,9 +2,9 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
+	"github.com/gofri/go-github-ratelimit/github_ratelimit"
 	"github.com/shurcooL/githubv4"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
@@ -19,13 +19,15 @@ var query struct {
 				HasNextPage     githubv4.Boolean
 				HasPreviousPage githubv4.Boolean
 			}
-			Nodes []struct {
-				Id              string
-				CreatedAt       string
-				FailureReason   string
-				RepositoryName  string
-				State           string
-				MigrationLogUrl string
+			Edges []struct {
+				Node struct {
+					Id              string
+					CreatedAt       string
+					FailureReason   string
+					RepositoryName  string
+					State           string
+					MigrationLogUrl string
+				}
 			}
 		} `graphql:"repositoryMigrations(first: $first, after: $after)"`
 	} `graphql:"organization(login: $orgName)"`
@@ -34,11 +36,16 @@ var query struct {
 func newGHClient() *githubv4.Client {
 	src := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: fmt.Sprint(viper.Get("GITHUB_TOKEN"))})
 	httpClient := oauth2.NewClient(context.Background(), src)
+	rateLimiter, err := github_ratelimit.NewRateLimitWaiterClient(httpClient.Transport)
 
-	return githubv4.NewClient(httpClient)
+	if err != nil {
+		panic(err)
+	}
+
+	return githubv4.NewClient(rateLimiter)
 }
 
-func GetOrgMigrations() []interface{} {
+func GetOrgMigrations() []map[string]string {
 	client := newGHClient()
 
 	variables := map[string]interface{}{
@@ -47,17 +54,28 @@ func GetOrgMigrations() []interface{} {
 		"after":   (*githubv4.String)(nil),
 	}
 
-	err := client.Query(context.Background(), &query, variables)
-	if err != nil {
-		panic(err)
+	var rm = []map[string]string{}
+	for {
+		err := client.Query(context.Background(), &query, variables)
+		if err != nil {
+			panic(err)
+		}
+
+		for _, repoMigration := range query.Organization.RepositoryMigrations.Edges {
+			rm = append(rm, map[string]string{
+				"Id":              repoMigration.Node.Id,
+				"CreatedAt":       repoMigration.Node.CreatedAt,
+				"FailureReason":   repoMigration.Node.FailureReason,
+				"RepositoryName":  repoMigration.Node.RepositoryName,
+				"State":           repoMigration.Node.State,
+				"MigrationLogUrl": repoMigration.Node.MigrationLogUrl})
+		}
+
+		if !query.Organization.RepositoryMigrations.PageInfo.HasNextPage {
+			break
+		}
+		variables["after"] = githubv4.NewString(query.Organization.RepositoryMigrations.PageInfo.EndCursor)
 	}
 
-	// Collect the query results
-	var results []interface{}
-	for _, node := range query.Organization.RepositoryMigrations.Nodes {
-		out, _ := json.Marshal(node)
-		results = append(results, out)
-	}
-
-	return results
+	return rm
 }
