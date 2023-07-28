@@ -19,7 +19,10 @@ type Migrations struct {
 	Log         []Migration
 }
 
-func (m *Migrations) FetchMigrations() {
+func GetMigrations() Migrations {
+	var migrations Migrations
+
+	// Get the data from the API
 	data := api.GetOrgMigrations()
 
 	for _, migration := range data {
@@ -31,16 +34,18 @@ func (m *Migrations) FetchMigrations() {
 
 		switch migration["State"] {
 		case "QUEUED":
-			m.Queued = append(m.Queued, repo)
+			migrations.Queued = append(migrations.Queued, repo)
 		case "IN_PROGRESS":
-			m.In_Progress = append(m.In_Progress, repo)
+			migrations.In_Progress = append(migrations.In_Progress, repo)
 		case "SUCCEEDED":
-			m.Succeeded = append(m.Succeeded, repo)
+			migrations.Succeeded = append(migrations.Succeeded, repo)
 		case "FAILED":
 			repo.FailureReason = migration["FailureReason"]
 			repo.MigrationLogUrl = migration["MigrationLogUrl"]
 
-			m.Failed = append(m.Failed, repo)
+			migrations.Failed = append(migrations.Failed, repo)
 		}
 	}
+
+	return migrations
 }
