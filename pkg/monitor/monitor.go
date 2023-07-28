@@ -1,7 +1,6 @@
 package monitor
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -23,27 +22,37 @@ func Organization() {
 	grid.AddItem(&tables.Queued, 0, 0, 1, 1, 0, 0, false)
 	grid.AddItem(&tables.InProgress, 0, 1, 1, 1, 0, 0, false)
 	grid.AddItem(&tables.Succeeded, 0, 2, 1, 1, 0, 0, false)
+	grid.AddItem(&tables.Failed, 1, 0, 1, 3, 0, 0, false)
 
 	// Capture keyboard events
 	grid.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		// Quit app if user presses 'q'
-		if event.Rune() == 'q' {
+		if event.Rune() == 'x' {
 			app.Stop()
 			return nil
+		} else if event.Rune() == 'q' {
+			app.SetFocus(&tables.Queued)
+		} else if event.Rune() == 'i' {
+			app.SetFocus(&tables.InProgress)
+		} else if event.Rune() == 's' {
+			app.SetFocus(&tables.Succeeded)
+		} else if event.Rune() == 'f' {
+			app.SetFocus(&tables.Failed)
 		}
 		return event
 	})
 
-	// Update the data every 5 seconds
-	go func() {
-		// Testing the UI
-		app.QueueUpdateDraw(func() {
-			fmt.Println("Updating data...", time.Now())
-		})
-	}()
+	go updateData(*tables)
 
 	// Set the grid as the application root
 	if err := app.SetRoot(grid, true).SetFocus(grid).Run(); err != nil {
 		panic(err)
+	}
+}
+
+func updateData(ui ui.UI) {
+	for {
+		ui.UpdateData()
+		time.Sleep(60 * time.Second)
 	}
 }
