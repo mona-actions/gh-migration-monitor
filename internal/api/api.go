@@ -165,7 +165,7 @@ func GetLegacyMigrations() []map[string]string {
 
 	for {
 		migrations, resp, err := client.Migrations.ListMigrations(context.Background(), viper.Get("GITHUB_ORGANIZATION").(string), opt)
-		//log.Println("got migrations", migrations)
+
 		if err != nil {
 			panic(err)
 		}
@@ -190,7 +190,7 @@ func GetLegacyMigrations() []map[string]string {
 			}
 
 			if !migrationStatusQuery.Organization.Migration.MigratableResources.PageInfo.HasNextPage {
-				break
+				continue
 			}
 			variables["after"] = githubv4.NewString(migrationStatusQuery.Organization.Migration.MigratableResources.PageInfo.EndCursor)
 		}
