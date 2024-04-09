@@ -1,6 +1,8 @@
 package migration
 
-import "github.com/mona-actions/gh-migration-monitor/internal/api"
+import (
+	"github.com/mona-actions/gh-migration-monitor/internal/api"
+)
 
 type Migration struct {
 	Id              string
@@ -33,13 +35,13 @@ func GetMigrations() Migrations {
 		}
 
 		switch migration["State"] {
-		case "QUEUED":
+		case "QUEUED", "WAITING":
 			migrations.Queued = append(migrations.Queued, repo)
-		case "IN_PROGRESS":
+		case "IN_PROGRESS", "PREPARING", "PENDING", "MAPPING", "ARCHIVE_UPLOADED", "CONFLICTS", "READY", "IMPORTING":
 			migrations.In_Progress = append(migrations.In_Progress, repo)
-		case "SUCCEEDED":
+		case "SUCCEEDED", "UNLOCKED", "IMPORTED":
 			migrations.Succeeded = append(migrations.Succeeded, repo)
-		case "FAILED":
+		case "FAILED", "FAILED_IMPORT":
 			repo.FailureReason = migration["FailureReason"]
 			repo.MigrationLogUrl = migration["MigrationLogUrl"]
 
