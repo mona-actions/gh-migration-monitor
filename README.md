@@ -20,6 +20,15 @@ Flags:
   -o, --organization string   Organization to monitor
 ```
 
+## Example
+
+The image below shows the output of the `gh migration-monitor` command and how the progress of the migration is displayed.
+
+![gh-migration-monitor](./assets/gh-migration-monitor.png)
+
+> [!TIP]
+> You can quickly change focus to Queued, In Progress, Succeeded, or Failed migrations by pressing the `q`, `i`, `s`, or `f` keys respectively.
+
 ## License
 
 - [MIT](./license) (c) [Mona-Actions](https://github.com/mona-actions)
