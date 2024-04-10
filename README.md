@@ -12,12 +12,13 @@ gh extension install mona-actions/gh-migration-monitor
 
 ```bash
 Usage:
-  migration-monitor [flags]
+gh migration-monitor [flags]
 
 Flags:
   -t, --github-token string   Github token to use
   -h, --help                  help for migration-monitor
   -o, --organization string   Organization to monitor
+  -l, --legacy                If the migration is a legacy migration, you need to provide this flag to monitor legacy migrations
 ```
 
 ## Example
