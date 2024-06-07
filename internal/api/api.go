@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 
@@ -167,14 +168,16 @@ func GetLegacyMigrations() []map[string]string {
 		migrations, resp, err := client.Migrations.ListMigrations(context.Background(), viper.Get("GITHUB_ORGANIZATION").(string), opt)
 
 		if err != nil {
-			panic(err)
+			log.Printf("Error getting List of Migrations: %v", err)
+			return nil
 		}
 
 		for _, migration := range migrations {
 			variables["guid"] = githubv4.String(*migration.GUID)
 			err := gqlClient.Query(context.Background(), &migrationStatusQuery, variables)
 			if err != nil {
-				panic(err)
+				log.Printf("Error executing Migration Status GraphQL query: %v", err)
+				return nil
 			}
 			for _, repoMigration := range migrationStatusQuery.Organization.Migration.MigratableResources.Nodes {
 				if repoMigration.ModelName == "repository" {
