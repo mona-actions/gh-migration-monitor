@@ -20,6 +20,7 @@ var rootCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		orgName := cmd.Flag("organization").Value.String()
 		token := cmd.Flag("github-token").Value.String()
+		isLegacy := cmd.Flag("legacy").Value.String()
 
 		// Set the GitHub Organization
 		os.Setenv("GHMM_GITHUB_ORGANIZATION", orgName)
@@ -29,6 +30,8 @@ var rootCmd = &cobra.Command{
 		os.Setenv("GHMM_GITHUB_TOKEN", token)
 		viper.BindEnv("GITHUB_TOKEN")
 
+		os.Setenv("GHMM_ISLEGACY", isLegacy)
+		viper.BindEnv("ISLEGACY")
 		// Call the monitor
 		monitor.Organization()
 	},
@@ -60,6 +63,8 @@ func init() {
 
 	// Not required because we can use the github token from the environment
 	rootCmd.Flags().StringP("github-token", "t", "", "Github token to use")
+
+	rootCmd.Flags().BoolP("legacy", "l", false, "Legacy migration monitoring")
 }
 
 func initConfig() {
