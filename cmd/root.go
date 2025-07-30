@@ -1,77 +1,135 @@
 package cmd
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"time"
 
-	"github.com/mona-actions/gh-migration-monitor/pkg/monitor"
+	"github.com/mona-actions/gh-migration-monitor/internal/api"
+	"github.com/mona-actions/gh-migration-monitor/internal/config"
+	"github.com/mona-actions/gh-migration-monitor/internal/services"
+	"github.com/mona-actions/gh-migration-monitor/internal/ui"
+	"github.com/rivo/tview"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+)
+
+var (
+	organization string
+	githubToken  string
+	legacy       bool
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "migration-monitor",
-	Short: "gh cli extension to monitor migration status",
-	Long:  `gh cli extension to monitor migration status`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+	Short: "GitHub CLI extension to monitor migration status",
+	Long: `A GitHub CLI extension that monitors the progress of GitHub Organization migrations.
 
-	Run: func(cmd *cobra.Command, args []string) {
-		orgName := cmd.Flag("organization").Value.String()
-		token := cmd.Flag("github-token").Value.String()
-		isLegacy := cmd.Flag("legacy").Value.String()
-
-		// Set the GitHub Organization
-		os.Setenv("GHMM_GITHUB_ORGANIZATION", orgName)
-		viper.BindEnv("GITHUB_ORGANIZATION")
-
-		// Set the GitHub Token
-		os.Setenv("GHMM_GITHUB_TOKEN", token)
-		viper.BindEnv("GITHUB_TOKEN")
-
-		os.Setenv("GHMM_ISLEGACY", isLegacy)
-		viper.BindEnv("ISLEGACY")
-		// Call the monitor
-		monitor.Organization()
-	},
+This tool provides a real-time dashboard for tracking repository migrations, supporting both
+legacy migrations and the new GitHub Enterprise Importer (GEI) migrations.`,
+	RunE: runMigrationMonitor,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gh-migration-monitor.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.Flags().StringP("organization", "o", "", "Organization to monitor")
-	rootCmd.MarkFlagRequired("organization")
+	// Required flags
+	rootCmd.Flags().StringVarP(&organization, "organization", "o", "", "GitHub organization to monitor (required)")
 
-	// Not required because we can use the github token from the environment
-	rootCmd.Flags().StringP("github-token", "t", "", "Github token to use")
-
-	rootCmd.Flags().BoolP("legacy", "l", false, "Legacy migration monitoring")
+	// Optional flags
+	rootCmd.Flags().StringVarP(&githubToken, "github-token", "t", "", "GitHub token (can also be set via GHMM_GITHUB_TOKEN)")
+	rootCmd.Flags().BoolVarP(&legacy, "legacy", "l", false, "Monitor legacy migrations")
 }
 
 func initConfig() {
-	// Set env prefix
-	viper.SetEnvPrefix("GHMM")
+	// Configuration is handled by the config package
+}
 
-	// Read in environment variables that match
-	// Specifically we are looking for GHMM_GITHUB_TOKEN
-	viper.AutomaticEnv()
+func runMigrationMonitor(cmd *cobra.Command, args []string) error {
+	// Check for required organization flag
+	if organization == "" {
+		return fmt.Errorf("organization is required. Use --organization flag or set GHMM_GITHUB_ORGANIZATION environment variable")
+	}
+
+	// Load configuration
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Override config with command line flags
+	if organization != "" {
+		cfg.GitHub.Organization = organization
+	}
+	if githubToken != "" {
+		cfg.GitHub.Token = githubToken
+	}
+	if legacy {
+		cfg.Migration.IsLegacy = legacy
+	}
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	// Create GitHub client
+	githubClient, err := api.NewGitHubClient(cfg.GitHub.Token, cfg.Migration.IsLegacy)
+	if err != nil {
+		return fmt.Errorf("failed to create GitHub client: %w", err)
+	}
+
+	// Create migration service
+	migrationService := services.NewMigrationService(githubClient)
+
+	// Create UI dashboard
+	dashboard := ui.NewDashboard()
+
+	// Setup TUI application
+	app := tview.NewApplication()
+	grid := dashboard.SetupGrid()
+	dashboard.SetupKeyboardNavigation(app, grid)
+
+	// Start background data updates
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+
+		// Initial load
+		updateDashboard(ctx, migrationService, dashboard, cfg)
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				updateDashboard(ctx, migrationService, dashboard, cfg)
+			}
+		}
+	}()
+
+	// Run the application
+	return app.SetRoot(grid, true).SetFocus(grid).Run()
+}
+
+func updateDashboard(ctx context.Context, service services.MigrationService, dashboard *ui.Dashboard, cfg *config.Config) {
+	summary, err := service.ListMigrations(ctx, cfg.GitHub.Organization, cfg.Migration.IsLegacy)
+	if err != nil {
+		// TODO: Add proper error handling/logging
+		return
+	}
+
+	dashboard.UpdateData(summary)
 }

@@ -1,6 +1,5 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
+# GitHub Migration Monitor - Go Project .gitignore
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -14,22 +13,65 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+# Dependency directories (remove the comment below to include it)
+vendor/
+
 # Go workspace file
 go.work
+go.work.sum
 
-# Go Patch
-/vendor/
-/Godeps/
-
-# Build outputs
+# Build outputs and binaries
 dist/
+bin/
+build/
 /gh-migration-monitor
-/gh-mirgation-monitor.exe
+/gh-migration-monitor.exe
 
-# Misc ignores
+# Development and IDE files
 .vscode/
-scratch
-*.csv
-*.log
-.vscode
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+scratch/
+temp/
+
+# Test coverage
+coverage.out
+coverage.html
+*.cover
+
+# Data files that might be generated during testing
+*.csv
+*.json.bak
+*.yaml.bak
+
+# Configuration files that might contain secrets
+.env
+.env.local
+.env.*.local
+config.local.*
+
+# GitHub CLI extension development
+.gh-extension-*
+
+# Profiling data
+*.prof
+*.pprof
+
+# Air live reloading tool
+tmp/
