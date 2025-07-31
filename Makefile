@@ -18,7 +18,7 @@ BINARY_WINDOWS=$(BINARY_NAME).exe
 LDFLAGS=-ldflags="-w -s"
 
 # Test flags
-TEST_FLAGS=-v -race -coverprofile=coverage.out
+TEST_FLAGS=-v -race -coverprofile=./coverage.out
 
 .PHONY: all build clean test coverage fmt help install deps
 
@@ -47,7 +47,7 @@ test: ## Run tests
 	$(GOTEST) $(TEST_FLAGS) ./...
 
 test-verbose: ## Run tests with verbose output
-	$(GOTEST) -v -race -coverprofile=coverage.out -covermode=atomic ./...
+	$(GOTEST) -v -race -coverprofile=./coverage.out -covermode=atomic ./...
 
 coverage: test ## Generate test coverage report
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html

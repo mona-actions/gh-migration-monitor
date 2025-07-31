@@ -44,8 +44,18 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
 
+      - name: Verify Go environment
+        run: |
+          go version
+          go env GOMOD
+          pwd
+          ls -la
+        shell: bash
+
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out ./...
+        run: |
+          go test -v -race -coverprofile=coverage.out ./...
+        shell: bash
 
       - name: Upload coverage to Codecov (Ubuntu only)
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == env.GO_VERSION
