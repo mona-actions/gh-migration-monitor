@@ -3,134 +3,60 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g., v1.0.0). If not provided, will use latest tag or current commit.'
+        required: false
+        type: string
+      draft:
+        description: 'Create as draft release'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 env:
-  GO_VERSION: '1.23'
   CGO_ENABLED: 0
 
 jobs:
-  build:
-    name: Build (${{ matrix.goos }}-${{ matrix.goarch }})
-    strategy:
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-          - goos: linux
-            goarch: arm64
-          - goos: darwin
-            goarch: amd64
-          - goos: darwin
-            goarch: arm64
-          - goos: windows
-            goarch: amd64
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: Extract version from tag
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Build binary
-        run: |
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            output_name="gh-migration-monitor.exe"
-            archive_name="gh-migration-monitor-${{ matrix.goos }}-${{ matrix.goarch }}.zip"
-          else
-            output_name="gh-migration-monitor"
-            archive_name="gh-migration-monitor-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz"
-          fi
-
-          echo "Building for ${{ matrix.goos }}/${{ matrix.goarch }}..."
-          GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" go build \
-            -ldflags="-w -s -X main.version=${{ steps.version.outputs.version }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            -o "$output_name" \
-            .
-
-          mkdir -p dist
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            zip "dist/$archive_name" "$output_name"
-          else
-            tar -czf "dist/$archive_name" "$output_name"
-          fi
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: gh-migration-monitor-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/
-          retention-days: 1
-
   release:
-    name: Create Release
-    needs: build
+    name: Release
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Extract version from tag
-        id: version
+      - name: Set build variables
+        id: vars
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Release version: $VERSION"
-
-      - name: Generate changelog
-        run: |
-          CURRENT_TAG=${GITHUB_REF#refs/tags/}
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-
-          cat > changelog.md << EOF
-          ## What's Changed in $CURRENT_TAG
-
-          EOF
-
-          if [ -n "$PREVIOUS_TAG" ]; then
-            echo "### Commits since $PREVIOUS_TAG:" >> changelog.md
-            git log --pretty=format:"- %s (%an)" --no-merges $PREVIOUS_TAG..$CURRENT_TAG >> changelog.md
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ inputs.tag }}" ]; then
+              version="${{ inputs.tag }}"
+            else
+              # Use latest tag or fallback to commit SHA
+              version=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0-${GITHUB_SHA::8}")
+            fi
           else
-            echo "### All commits:" >> changelog.md
-            git log --pretty=format:"- %s (%an)" --no-merges >> changelog.md
+            # For tag pushes
+            version=${GITHUB_REF#refs/tags/}
           fi
 
-          echo "" >> changelog.md
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...$CURRENT_TAG" >> changelog.md
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+          echo "Using version: $version"
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - name: Release extension
+        uses: cli/gh-extension-precompile@v2
         with:
-          path: dist/
-          merge-multiple: true
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Release ${{ steps.version.outputs.version }}
-          body_path: changelog.md
-          draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
-          generate_release_notes: true
-          files: |
-            dist/*.tar.gz
-            dist/*.zip
-          fail_on_unmatched_files: true
+          go_version: '1.23'
+          go_build_options: '-ldflags="-w -s -X main.version=${{ steps.vars.outputs.version }} -X main.buildDate=${{ steps.vars.outputs.build_date }}"'
+          generate_attestations: true
+          release_tag: ${{ steps.vars.outputs.version }}
+          draft_release: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
