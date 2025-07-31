@@ -1,16 +1,15 @@
 name: CI
+
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths-ignore:
       - '*.md'
       - 'docs/**'
       - '.gitignore'
       - 'LICENSE'
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths-ignore:
       - '*.md'
       - 'docs/**'
@@ -19,12 +18,14 @@ on:
 
 env:
   GO_VERSION: '1.23'
+  GO_MIN_VERSION: '1.22'
 
 jobs:
-  # Test and build on multiple platforms and Go versions
+  # Test on multiple platforms and Go versions
   test:
-    name: Test
+    name: Test (${{ matrix.os }}, Go ${{ matrix.go-version }})
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         go-version: ['1.22', '1.23']
@@ -38,7 +39,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Go
+      - name: Setup Go ${{ matrix.go-version }}
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
@@ -47,28 +48,30 @@ jobs:
       - name: Verify Go environment
         run: |
           go version
-          go env GOMOD
-          pwd
-          ls -la
+          go env GOOS GOARCH GOMOD
         shell: bash
 
-      - name: Run tests
-        run: |
-          go test -v -race -coverprofile=coverage.out ./...
+      - name: Download dependencies
+        run: go mod download
         shell: bash
 
-      - name: Upload coverage to Codecov (Ubuntu only)
+      - name: Run tests with coverage
+        run: go test -v -race -coverprofile=coverage.out ./...
+        shell: bash
+
+      - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.go-version == env.GO_VERSION
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.out
           fail_ci_if_error: false
 
-  # Build binary for multiple platforms
+  # Build binaries for multiple platforms
   build:
-    name: Build
+    name: Build (${{ matrix.goos }}-${{ matrix.goarch }})
     needs: [test]
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -95,6 +98,7 @@ jobs:
     env:
       GOOS: ${{ matrix.goos }}
       GOARCH: ${{ matrix.goarch }}
+      CGO_ENABLED: 0
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -105,42 +109,31 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
+      - name: Download dependencies
+        run: go mod download
+
       - name: Build binary
         run: |
+          BINARY_NAME="gh-migration-monitor"
           if [ "$GOOS" = "windows" ]; then
-            go build -v -ldflags="-w -s" -o gh-migration-monitor.exe .
-          else
-            go build -v -ldflags="-w -s" -o gh-migration-monitor .
+            BINARY_NAME="${BINARY_NAME}.exe"
           fi
+          go build -v -ldflags="-w -s -X main.version=dev" -o "$BINARY_NAME" .
         shell: bash
 
-      - name: Upload build artifacts
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gh-migration-monitor-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
           path: gh-migration-monitor*
+          retention-days: 30
 
-  # Consolidated status check for branch protection
-  ci-status:
-    name: CI Status
-    runs-on: ubuntu-latest
-    needs: [test, build]
-    if: always()
-    permissions:
-      contents: read
-    steps:
-      - name: Check CI Status
-        run: |
-          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.build.result }}" != "success" ]; then
-            echo "CI failed"
-            exit 1
-          fi
-          echo "CI passed"
-
-  # Integration tests
+  # Integration tests with GitHub CLI
   integration-test:
-    name: Integration Test
+    name: Integration Test (${{ matrix.os }})
+    needs: [test, build]
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -159,13 +152,18 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
+      - name: Install GitHub CLI
+        uses: ./.github/actions/install-gh-cli
+        if: false # Disable composite action for now
+
       - name: Install GitHub CLI (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
+          type -p curl >/dev/null || (sudo apt update && sudo apt install curl -y)
           curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-          sudo apt update
-          sudo apt install gh
+          sudo apt update && sudo apt install gh -y
 
       - name: Install GitHub CLI (macOS)
         if: matrix.os == 'macos-latest'
@@ -173,67 +171,82 @@ jobs:
 
       - name: Install GitHub CLI (Windows)
         if: matrix.os == 'windows-latest'
-        run: choco install gh --yes
+        run: |
+          choco install gh --yes
+          refreshenv
 
       - name: Build extension
         run: |
+          BINARY_NAME="gh-migration-monitor"
           if [ "${{ runner.os }}" = "Windows" ]; then
-            go build -o gh-migration-monitor.exe .
-          else
-            go build -o gh-migration-monitor .
+            BINARY_NAME="${BINARY_NAME}.exe"
           fi
+          go build -ldflags="-w -s" -o "$BINARY_NAME" .
         shell: bash
 
       - name: Test extension help
         run: |
+          BINARY_NAME="gh-migration-monitor"
           if [ "${{ runner.os }}" = "Windows" ]; then
-            ./gh-migration-monitor.exe --help
-          else
-            ./gh-migration-monitor --help
+            BINARY_NAME="${BINARY_NAME}.exe"
           fi
+          ./"$BINARY_NAME" --help
         shell: bash
 
-      - name: Test extension version info
+      - name: Test extension version
         run: |
+          BINARY_NAME="gh-migration-monitor"
           if [ "${{ runner.os }}" = "Windows" ]; then
-            ./gh-migration-monitor.exe --version || echo "Version flag not implemented yet"
-          else
-            ./gh-migration-monitor --version || echo "Version flag not implemented yet"
+            BINARY_NAME="${BINARY_NAME}.exe"
           fi
+          ./"$BINARY_NAME" --version || echo "Version flag not implemented yet"
         shell: bash
 
-      - name: Test extension with invalid flags (should fail gracefully)
+      - name: Test invalid flags handling
         run: |
+          BINARY_NAME="gh-migration-monitor"
           if [ "${{ runner.os }}" = "Windows" ]; then
-            BINARY="./gh-migration-monitor.exe"
-          else
-            BINARY="./gh-migration-monitor"
+            BINARY_NAME="${BINARY_NAME}.exe"
           fi
 
-          if $BINARY --invalid-flag; then
-            echo "ERROR: Extension should have failed with invalid flag"
+          if ./"$BINARY_NAME" --invalid-flag 2>/dev/null; then
+            echo "ERROR: Extension should reject invalid flags"
             exit 1
           else
-            echo "SUCCESS: Extension properly handled invalid flag"
+            echo "SUCCESS: Extension properly handles invalid flags"
           fi
         shell: bash
 
-  # Updated consolidated status check for branch protection
-  all-checks:
-    name: All Checks
+  # Final status check for branch protection
+  ci-complete:
+    name: CI Complete
     runs-on: ubuntu-latest
     needs: [test, build, integration-test]
     if: always()
     permissions:
       contents: read
     steps:
-      - name: Check All Status
+      - name: Check overall CI status
         run: |
-          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.build.result }}" != "success" ] || [ "${{ needs.integration-test.result }}" != "success" ]; then
-            echo "One or more checks failed:"
-            echo "- Test: ${{ needs.test.result }}"
-            echo "- Build: ${{ needs.build.result }}"
-            echo "- Integration Test: ${{ needs.integration-test.result }}"
+          echo "=== CI Results ==="
+          echo "Test: ${{ needs.test.result }}"
+          echo "Build: ${{ needs.build.result }}"
+          echo "Integration Test: ${{ needs.integration-test.result }}"
+          echo "==================="
+
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "❌ Tests failed"
             exit 1
           fi
-          echo "All checks passed successfully"
+
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "❌ Build failed"
+            exit 1
+          fi
+
+          if [ "${{ needs.integration-test.result }}" != "success" ]; then
+            echo "❌ Integration tests failed"
+            exit 1
+          fi
+
+          echo "✅ All checks passed successfully"
