@@ -1,0 +1,96 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+
+env:
+  GO_VERSION: '1.23'
+
+jobs:
+  integration-tests:
+    name: Integration Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            install_cmd: |
+              type -p curl >/dev/null || (sudo apt update && sudo apt install curl -y)
+              curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+              sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+              echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+              sudo apt update && sudo apt install gh -y
+          - os: macos-latest
+            install_cmd: brew install gh
+          - os: windows-latest
+            install_cmd: choco install gh --yes
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install GitHub CLI
+        run: ${{ matrix.install_cmd }}
+
+      - name: Build and test binary
+        run: |
+          BINARY_NAME="gh-migration-monitor"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+
+          echo "Building $BINARY_NAME..."
+          go build -ldflags="-w -s -X main.version=integration-test -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o "$BINARY_NAME" .
+
+          echo "Testing help command..."
+          ./"$BINARY_NAME" --help
+
+          echo "Testing version command..."
+          ./"$BINARY_NAME" --version
+
+          echo "Testing organization flag requirement..."
+          if ./"$BINARY_NAME" 2>&1 | grep -q "organization.*required\|Error.*organization"; then
+            echo "SUCCESS: Extension properly requires organization flag"
+          else
+            echo "WARNING: Extension may not be properly validating required flags"
+          fi
+
+          echo "Testing invalid flag handling..."
+          if ./"$BINARY_NAME" --invalid-flag 2>/dev/null; then
+            echo "ERROR: Extension should reject invalid flags"
+            exit 1
+          else
+            echo "SUCCESS: Extension properly handles invalid flags"
+          fi
+        shell: bash
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: integration-test-artifacts-${{ matrix.os }}
+          path: |
+            gh-migration-monitor*
+          retention-days: 7
