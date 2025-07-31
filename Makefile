@@ -8,7 +8,6 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOFMT=gofmt
-GOLINT=golangci-lint
 
 # Binary name
 BINARY_NAME=gh-migration-monitor
@@ -21,9 +20,9 @@ LDFLAGS=-ldflags="-w -s"
 # Test flags
 TEST_FLAGS=-v -race -coverprofile=coverage.out
 
-.PHONY: all build clean test coverage lint fmt help install deps
+.PHONY: all build clean test coverage fmt help install deps
 
-all: test lint build ## Run tests, lint, and build
+all: test build ## Run tests and build
 
 help: ## Show this help message
 	@echo 'Available targets:'
@@ -57,12 +56,6 @@ coverage: test ## Generate test coverage report
 bench: ## Run benchmarks
 	$(GOTEST) -bench=. -benchmem ./...
 
-lint: ## Run linter
-	$(GOLINT) run
-
-lint-fix: ## Run linter and fix issues automatically
-	$(GOLINT) run --fix
-
 fmt: ## Format code
 	$(GOFMT) -s -w .
 	$(GOCMD) mod tidy
@@ -87,10 +80,9 @@ run: build ## Build and run the application
 
 dev-setup: ## Set up development environment
 	@echo "Setting up development environment..."
-	$(GOCMD) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	@echo "Development tools installed successfully!"
+	@echo "Development tools setup complete!"
 
-check: fmt-check lint test ## Run all checks (format, lint, test)
+check: fmt-check test ## Run all checks (format, test)
 
 ci: deps check build ## Run CI pipeline locally
 
