@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.24.5
 
 require (
-	github.com/gdamore/tcell/v2 v2.6.0
+	github.com/gdamore/tcell/v2 v2.8.1
 	github.com/gofri/go-github-ratelimit v1.0.4
 	github.com/rivo/tview v0.0.0-20230621164836-6cc0565babaf
 	github.com/shurcooL/githubv4 v0.0.0-20230704064427-599ae7bbf278
@@ -28,11 +28,11 @@ require (
 
 require (
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
-	github.com/gdamore/encoding v1.0.0 // indirect
+	github.com/gdamore/encoding v1.0.1 // indirect
 	github.com/google/go-github/v53 v53.2.0
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
-	github.com/mattn/go-runewidth v0.0.14 // indirect
+	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/shurcooL/graphql v0.0.0-20230722043721-ed46e5a46466 // indirect
