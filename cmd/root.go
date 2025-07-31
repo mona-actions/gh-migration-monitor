@@ -18,6 +18,10 @@ var (
 	organization string
 	githubToken  string
 	legacy       bool
+
+	// Version info
+	version   = "dev"
+	buildDate = "unknown"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -37,6 +41,13 @@ func Execute() {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// SetVersionInfo sets the version and build date information
+func SetVersionInfo(v, bd string) {
+	version = v
+	buildDate = bd
+	rootCmd.Version = fmt.Sprintf("%s (built: %s)", version, buildDate)
 }
 
 func init() {
