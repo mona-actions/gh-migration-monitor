@@ -28,10 +28,56 @@ jobs:
       - name: Run tests
         run: go test -v -race ./...
 
+  # Run integration tests before release
+  integration-test:
+    name: Pre-release Integration Tests
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install GitHub CLI (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh
+
+      - name: Install GitHub CLI (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install gh
+
+      - name: Install GitHub CLI (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install gh --yes
+
+      - name: Build and test extension
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            go build -o gh-migration-monitor.exe .
+            ./gh-migration-monitor.exe --help
+            ./gh-migration-monitor.exe --version || echo "Version flag not implemented yet"
+          else
+            go build -o gh-migration-monitor .
+            ./gh-migration-monitor --help
+            ./gh-migration-monitor --version || echo "Version flag not implemented yet"
+          fi
+        shell: bash
+
   # Create GitHub release with precompiled binaries
   release:
     name: Release
-    needs: test
+    needs: [test, integration-test]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

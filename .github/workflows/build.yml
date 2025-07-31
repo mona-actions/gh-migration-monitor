@@ -119,3 +119,121 @@ jobs:
         with:
           name: gh-migration-monitor-${{ matrix.goos }}-${{ matrix.goarch }}
           path: gh-migration-monitor*
+
+  # Consolidated status check for branch protection
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Check CI Status
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.build.result }}" != "success" ]; then
+            echo "CI failed"
+            exit 1
+          fi
+          echo "CI passed"
+
+  # Integration tests
+  integration-test:
+    name: Integration Test
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    concurrency:
+      group: integration-${{ matrix.os }}-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install GitHub CLI (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh
+
+      - name: Install GitHub CLI (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install gh
+
+      - name: Install GitHub CLI (Windows)
+        if: matrix.os == 'windows-latest'
+        run: choco install gh --yes
+
+      - name: Build extension
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            go build -o gh-migration-monitor.exe .
+          else
+            go build -o gh-migration-monitor .
+          fi
+        shell: bash
+
+      - name: Test extension help
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ./gh-migration-monitor.exe --help
+          else
+            ./gh-migration-monitor --help
+          fi
+        shell: bash
+
+      - name: Test extension version info
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ./gh-migration-monitor.exe --version || echo "Version flag not implemented yet"
+          else
+            ./gh-migration-monitor --version || echo "Version flag not implemented yet"
+          fi
+        shell: bash
+
+      - name: Test extension with invalid flags (should fail gracefully)
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            BINARY="./gh-migration-monitor.exe"
+          else
+            BINARY="./gh-migration-monitor"
+          fi
+
+          if $BINARY --invalid-flag; then
+            echo "ERROR: Extension should have failed with invalid flag"
+            exit 1
+          else
+            echo "SUCCESS: Extension properly handled invalid flag"
+          fi
+        shell: bash
+
+  # Updated consolidated status check for branch protection
+  all-checks:
+    name: All Checks
+    runs-on: ubuntu-latest
+    needs: [test, build, integration-test]
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Check All Status
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ] || [ "${{ needs.build.result }}" != "success" ] || [ "${{ needs.integration-test.result }}" != "success" ]; then
+            echo "One or more checks failed:"
+            echo "- Test: ${{ needs.test.result }}"
+            echo "- Build: ${{ needs.build.result }}"
+            echo "- Integration Test: ${{ needs.integration-test.result }}"
+            exit 1
+          fi
+          echo "All checks passed successfully"
