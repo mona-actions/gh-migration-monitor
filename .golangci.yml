@@ -58,7 +58,6 @@ linters:
     - govet
     - ineffassign
     - staticcheck
-    - typecheck
     - unused
 
     # Additional recommended linters
@@ -85,6 +84,7 @@ linters:
     - golint
     - interfacer
     - scopelint
+    - typecheck
 
 issues:
   exclude-rules:
