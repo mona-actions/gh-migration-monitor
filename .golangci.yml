@@ -1,0 +1,117 @@
+# golangci-lint configuration for gh-migration-monitor
+# See https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  issues-exit-code: 1
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  gofmt:
+    simplify: true
+
+  goimports:
+    local-prefixes: github.com/mona-actions/gh-migration-monitor
+
+  golint:
+    min-confidence: 0.8
+
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment # Can be overly strict for readability
+
+  ineffassign:
+    check-exported: true
+
+  misspell:
+    locale: US
+
+  unparam:
+    check-exported: true
+
+  unused:
+    check-exported: false
+
+  whitespace:
+    multi-if: false
+    multi-func: false
+
+linters:
+  enable:
+    # Default linters
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+
+    # Additional recommended linters
+    - gofmt
+    - goimports
+    - goconst
+    - misspell
+    - unparam
+    - unconvert
+    - whitespace
+    - prealloc
+    - predeclared
+    - nolintlint
+
+    # Security linters
+    - gosec
+
+    # Performance linters
+    - maligned
+
+    # Style linters
+    - gofumpt
+
+  disable:
+    - maligned # Deprecated
+    - golint # Deprecated
+    - interfacer # Deprecated
+    - scopelint # Deprecated
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gosec
+        - unparam
+        - goconst
+
+    # Exclude shadow checking in type switch statements
+    - linters:
+        - govet
+      text: 'declaration of .err. shadows declaration at'
+
+    # Exclude certain gosec rules that might be overly strict
+    - linters:
+        - gosec
+      text: 'G404:' # Use of weak random number generator
+
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+
+severity:
+  default-severity: error
+  case-sensitive: false

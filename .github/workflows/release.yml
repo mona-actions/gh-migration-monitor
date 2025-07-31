@@ -1,14 +1,128 @@
-name: release
+name: Release
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
+
 permissions:
   contents: write
 
+env:
+  GO_VERSION: '1.23'
+
 jobs:
-  release:
+  # Run tests before release
+  test:
+    name: Pre-release Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: cli/gh-extension-precompile@v1
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run tests
+        run: go test -v -race ./...
+
+      - name: Run lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  # Create GitHub release with precompiled binaries
+  release:
+    name: Release
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the latest tag (current release)
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+
+          # Get the previous tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          echo "Current tag: $CURRENT_TAG"
+          echo "Previous tag: $PREVIOUS_TAG"
+
+          # Generate changelog
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s" $PREVIOUS_TAG..$CURRENT_TAG)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s")
+          fi
+
+          # Save changelog to file (handle multiline properly)
+          cat > changelog.md << 'EOF'
+          ## Changes in $CURRENT_TAG
+
+          $CHANGELOG
+          EOF
+
+          # Also set for GitHub Actions (single line)
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Use GitHub CLI extension precompile
+        uses: cli/gh-extension-precompile@v2
+        with:
+          go_version: ${{ env.GO_VERSION }}
+          build_script_override: |
+            platforms=(
+              "linux/amd64"
+              "linux/arm64"
+              "darwin/amd64"
+              "darwin/arm64"
+              "windows/amd64"
+            )
+
+            for platform in "${platforms[@]}"; do
+              goos="${platform%/*}"
+              goarch="${platform#*/}"
+
+              output_dir="dist/$goos-$goarch"
+              mkdir -p "$output_dir"
+
+              if [ "$goos" = "windows" ]; then
+                output_name="gh-migration-monitor.exe"
+              else
+                output_name="gh-migration-monitor"
+              fi
+
+              echo "Building for $goos/$goarch..."
+              GOOS="$goos" GOARCH="$goarch" go build \
+                -ldflags="-w -s -X main.version=${GITHUB_REF#refs/tags/}" \
+                -o "$output_dir/$output_name" \
+                .
+            done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: changelog.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            dist/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
