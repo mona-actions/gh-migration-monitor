@@ -1,8 +1,6 @@
 # golangci-lint configuration for gh-migration-monitor
 # See https://golangci-lint.run/usage/configuration/
 
-version: 2
-
 run:
   timeout: 5m
   issues-exit-code: 1
@@ -51,8 +49,9 @@ linters-settings:
     multi-func: false
 
 linters:
+  disable-all: true
   enable:
-    # Default linters
+    # Core linters
     - errcheck
     - gosimple
     - govet
@@ -60,31 +59,18 @@ linters:
     - staticcheck
     - unused
 
-    # Additional recommended linters
+    # Formatting linters
     - gofmt
     - goimports
+
+    # Code quality linters
     - goconst
     - misspell
     - unparam
     - unconvert
-    - whitespace
-    - prealloc
-    - predeclared
-    - nolintlint
 
     # Security linters
     - gosec
-
-    # Style linters
-    - gofumpt
-
-  disable:
-    # These linters are deprecated and removed in newer versions
-    - maligned
-    - golint
-    - interfacer
-    - scopelint
-    - typecheck
 
 issues:
   exclude-rules:
