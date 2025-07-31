@@ -8,10 +8,6 @@ updates:
       day: 'monday'
       time: '09:00'
     open-pull-requests-limit: 5
-    reviewers:
-      - 'mona-actions'
-    assignees:
-      - 'mona-actions'
     commit-message:
       prefix: 'deps'
       include: 'scope'
@@ -24,10 +20,6 @@ updates:
       day: 'monday'
       time: '09:00'
     open-pull-requests-limit: 3
-    reviewers:
-      - 'mona-actions'
-    assignees:
-      - 'mona-actions'
     commit-message:
       prefix: 'ci'
       include: 'scope'
