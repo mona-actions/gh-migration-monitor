@@ -1,6 +1,8 @@
 # golangci-lint configuration for gh-migration-monitor
 # See https://golangci-lint.run/usage/configuration/
 
+version: 2
+
 run:
   timeout: 5m
   issues-exit-code: 1
@@ -8,7 +10,8 @@ run:
   modules-download-mode: readonly
 
 output:
-  format: colored-line-number
+  formats:
+    - format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
 
@@ -26,9 +29,6 @@ linters-settings:
 
   goimports:
     local-prefixes: github.com/mona-actions/gh-migration-monitor
-
-  golint:
-    min-confidence: 0.8
 
   govet:
     enable-all: true
@@ -77,17 +77,15 @@ linters:
     # Security linters
     - gosec
 
-    # Performance linters
-    - maligned
-
     # Style linters
     - gofumpt
 
   disable:
-    - maligned # Deprecated
-    - golint # Deprecated
-    - interfacer # Deprecated
-    - scopelint # Deprecated
+    # These linters are deprecated and removed in newer versions
+    - maligned
+    - golint
+    - interfacer
+    - scopelint
 
 issues:
   exclude-rules:
