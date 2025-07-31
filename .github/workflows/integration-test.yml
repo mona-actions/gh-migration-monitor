@@ -39,7 +39,7 @@ jobs:
       - name: Install GitHub CLI (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          winget install --id GitHub.cli
+          choco install gh --yes
 
       - name: Build extension
         run: go build -o gh-migration-monitor .
