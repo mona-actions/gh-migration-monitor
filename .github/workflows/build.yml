@@ -112,6 +112,7 @@ jobs:
           else
             go build -v -ldflags="-w -s" -o gh-migration-monitor .
           fi
+        shell: bash
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
