@@ -32,8 +32,8 @@ Commands: r Refresh  / Search  x Exit  Filters: a All  q Queued  i In Progress  
 - 📊 **Multi-state tracking** (Queued, In Progress, Succeeded, Failed)
 - 🔍 **Advanced filtering** with status-based views and search functionality
 - 🎯 **Live search** with real-time repository name filtering
-- � **Comprehensive table** showing Repository Name, Migration ID, Status, and Created At
-- �🔧 **Legacy support** for both GEI and legacy migrations
+- 📋 **Comprehensive table** showing Repository Name, Migration ID, Status, and Created At
+- 🔧 **Legacy support** for both GEI and legacy migrations
 - ⌨️ **Interactive UI** with intuitive keyboard navigation
 - 🎨 **Color-coded status** indicators for quick visual assessment
 - ⚡ **Optimized performance** with efficient data filtering and updates
