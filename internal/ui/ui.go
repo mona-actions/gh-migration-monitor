@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -31,10 +32,13 @@ type Dashboard struct {
 	app              *tview.Application
 	refreshFunc      func()
 	isRefreshing     bool
+	isShuttingDown   bool
 	currentFilter    FilterOption
 	allMigrations    []models.Migration
 	organizationName string
 	searchTerm       string
+	refreshingCtx    context.Context
+	refreshingCancel context.CancelFunc
 }
 
 // NewDashboard creates a new UI dashboard
@@ -203,7 +207,7 @@ func (d *Dashboard) SetupKeyboardNavigation(app *tview.Application, grid *tview.
 func (d *Dashboard) handleKeyInput(event *tcell.EventKey) *tcell.EventKey {
 	switch event.Rune() {
 	case 'x':
-		d.app.Stop()
+		d.handleExit()
 		return nil
 	case 'r':
 		d.handleRefresh()
@@ -217,9 +221,30 @@ func (d *Dashboard) handleKeyInput(event *tcell.EventKey) *tcell.EventKey {
 	return event
 }
 
+// handleExit properly cleans up resources before stopping the application
+func (d *Dashboard) handleExit() {
+	if d.app == nil {
+		return
+	}
+
+	// Set shutdown flag to prevent new operations
+	d.isShuttingDown = true
+
+	// Cancel any running refresh animation without UI updates
+	if d.refreshingCancel != nil {
+		d.refreshingCancel()
+		d.refreshingCancel = nil
+		d.refreshingCtx = nil
+	}
+	d.isRefreshing = false
+
+	// Stop the application immediately without any UI updates
+	d.app.Stop()
+}
+
 // handleRefresh triggers a refresh if one is not already in progress
 func (d *Dashboard) handleRefresh() {
-	if d.refreshFunc != nil && !d.isRefreshing {
+	if d.refreshFunc != nil && !d.isRefreshing && !d.isShuttingDown {
 		go d.refreshFunc()
 	}
 }
@@ -354,31 +379,63 @@ func (d *Dashboard) SetRefreshFunc(f func()) {
 
 // ShowRefreshing displays a loading indicator with animation
 func (d *Dashboard) ShowRefreshing() {
-	if d.app != nil {
-		d.isRefreshing = true
+	if d.app == nil || d.isShuttingDown {
+		return
+	}
 
-		// Start animation
-		go func() {
-			frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-			frameIndex := 0
+	// Cancel any existing refresh animation
+	d.HideRefreshing()
 
-			for d.isRefreshing {
+	d.isRefreshing = true
+	d.refreshingCtx, d.refreshingCancel = context.WithCancel(context.Background())
+
+	// Start animation goroutine with proper cancellation
+	go func() {
+		frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+		frameIndex := 0
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-d.refreshingCtx.Done():
+				// Context cancelled, exit goroutine
+				return
+			case <-ticker.C:
+				if !d.isRefreshing {
+					// Fallback check in case context wasn't cancelled
+					return
+				}
+
+				currentFrame := frames[frameIndex]
 				d.app.QueueUpdateDraw(func() {
 					if d.isRefreshing {
-						d.StatusBar.SetText(fmt.Sprintf("[yellow::b]%s Refreshing...", frames[frameIndex]))
+						d.StatusBar.SetText(fmt.Sprintf("[yellow::b]%s Refreshing...", currentFrame))
 					}
 				})
 				frameIndex = (frameIndex + 1) % len(frames)
-				time.Sleep(100 * time.Millisecond)
 			}
-		}()
-	}
+		}
+	}()
 }
 
 // HideRefreshing hides the loading indicator and shows last update time
 func (d *Dashboard) HideRefreshing() {
-	if d.app != nil {
-		d.isRefreshing = false
+	if d.app == nil {
+		return
+	}
+
+	// Cancel the animation goroutine if it's running
+	if d.refreshingCancel != nil {
+		d.refreshingCancel()
+		d.refreshingCancel = nil
+		d.refreshingCtx = nil
+	}
+
+	d.isRefreshing = false
+
+	// Don't queue UI updates if we're shutting down
+	if !d.isShuttingDown {
 		d.app.QueueUpdateDraw(func() {
 			currentTime := time.Now().Format("15:04:05")
 			d.StatusBar.SetText(fmt.Sprintf("[green::b]Last updated: %s", currentTime))
@@ -393,4 +450,18 @@ func (d *Dashboard) ShowProgress(message string) {
 			d.StatusBar.SetText(fmt.Sprintf("[yellow::b]%s", message))
 		})
 	}
+}
+
+// Cleanup cancels any running goroutines and cleans up resources
+func (d *Dashboard) Cleanup() {
+	// Set shutdown flag to prevent new operations
+	d.isShuttingDown = true
+
+	// Cancel any running refresh animation without UI updates during shutdown
+	if d.refreshingCancel != nil {
+		d.refreshingCancel()
+		d.refreshingCancel = nil
+		d.refreshingCtx = nil
+	}
+	d.isRefreshing = false
 }

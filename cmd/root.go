@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/mona-actions/gh-migration-monitor/internal/api"
@@ -113,9 +115,17 @@ func runMigrationMonitor(cmd *cobra.Command, args []string) error {
 	// Start background data updates
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	defer dashboard.Cleanup() // Ensure UI resources are cleaned up
 
 	// Setup refresh function
 	refreshFunc := func() {
+		// Check if context is cancelled before starting refresh
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		dashboard.ShowRefreshing()
 		updateDashboard(ctx, migrationService, dashboard, cfg)
 		dashboard.HideRefreshing()
@@ -139,12 +149,29 @@ func runMigrationMonitor(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
+	// Setup signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Handle signals in a separate goroutine
+	go func() {
+		<-sigChan
+		// Signal received, initiate graceful shutdown
+		cancel()            // Cancel background context
+		dashboard.Cleanup() // Clean up UI resources
+		app.Stop()          // Stop the tview application
+	}()
+
 	// Run the application
 	return app.SetRoot(grid, true).SetFocus(grid).Run()
 }
 
 func updateDashboard(ctx context.Context, service services.MigrationService, dashboard *ui.Dashboard, cfg *config.Config) {
-	summary, err := service.ListMigrations(ctx, cfg.GitHub.Organization, cfg.Migration.IsLegacy)
+	// Create a timeout context for API calls to prevent hanging
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	summary, err := service.ListMigrations(timeoutCtx, cfg.GitHub.Organization, cfg.Migration.IsLegacy)
 	if err != nil {
 		// TODO: Add proper error handling/logging
 		return

@@ -103,13 +103,6 @@ func (mt *MigrationTable) GetTitle() string {
 	return mt.title
 }
 
-// SetTitleWithOrganization updates the table title to include the organization name
-func (mt *MigrationTable) SetTitleWithOrganization(organization string) {
-	newTitle := fmt.Sprintf("Migration Status - %s", organization)
-	mt.title = newTitle
-	mt.Table.SetTitle(newTitle)
-}
-
 // SetTitleWithOrganizationAndFilter updates the table title to include organization and filter
 func (mt *MigrationTable) SetTitleWithOrganizationAndFilter(organization, filter string) {
 	var newTitle string
@@ -120,5 +113,4 @@ func (mt *MigrationTable) SetTitleWithOrganizationAndFilter(organization, filter
 	}
 	mt.title = newTitle
 	mt.Table.SetTitle(newTitle)
-}
 }
