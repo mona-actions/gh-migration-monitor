@@ -123,7 +123,7 @@ func runMigrationMonitor(cmd *cobra.Command, args []string) error {
 	dashboard.SetRefreshFunc(refreshFunc)
 
 	go func() {
-		ticker := time.NewTicker(30 * time.Second) // Changed from 60 to 30 seconds
+		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 
 		// Initial load immediately
