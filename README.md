@@ -123,8 +123,8 @@ The terminal dashboard displays a comprehensive migration table with the followi
 | Created At      | When the migration was initiated      |
 
 ### Status Color Coding
-- � **Blue**: Queued states (`QUEUED`, `WAITING`)
-- � **Yellow**: In Progress (`IN_PROGRESS`, `PREPARING`, `PENDING`, `MAPPING`, `IMPORTING`, etc.)
+- 🔵 **Blue**: Queued states (`QUEUED`, `WAITING`)
+- 🟡 **Yellow**: In Progress (`IN_PROGRESS`, `PREPARING`, `PENDING`, `MAPPING`, `IMPORTING`, etc.)
 - 🟢 **Green**: Succeeded (`SUCCEEDED`, `UNLOCKED`, `IMPORTED`)
 - 🔴 **Red**: Failed (`FAILED`, `FAILED_IMPORT`)
 
