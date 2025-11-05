@@ -114,19 +114,27 @@ func runMigrationMonitor(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Setup refresh function
+	refreshFunc := func() {
+		dashboard.ShowRefreshing()
+		updateDashboard(ctx, migrationService, dashboard, cfg)
+		dashboard.HideRefreshing()
+	}
+	dashboard.SetRefreshFunc(refreshFunc)
+
 	go func() {
-		ticker := time.NewTicker(60 * time.Second)
+		ticker := time.NewTicker(30 * time.Second) // Changed from 60 to 30 seconds
 		defer ticker.Stop()
 
-		// Initial load
-		updateDashboard(ctx, migrationService, dashboard, cfg)
+		// Initial load immediately
+		refreshFunc()
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				updateDashboard(ctx, migrationService, dashboard, cfg)
+				refreshFunc()
 			}
 		}
 	}()
@@ -142,5 +150,5 @@ func updateDashboard(ctx context.Context, service services.MigrationService, das
 		return
 	}
 
-	dashboard.UpdateData(summary)
+	dashboard.UpdateData(summary, cfg.GitHub.Organization)
 }

@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/mona-actions/gh-migration-monitor/internal/models"
 	"github.com/rivo/tview"
@@ -34,11 +36,6 @@ func (mt *MigrationTable) UpdateData(migrations []models.Migration) {
 	mt.SetCell(0, 0, tview.NewTableCell("Repository Name").SetExpansion(1))
 	mt.SetCell(0, 1, tview.NewTableCell("Created At").SetExpansion(1))
 
-	// Add error column for failed migrations
-	if mt.title == "Failed" {
-		mt.SetCell(0, 2, tview.NewTableCell("Error").SetExpansion(1))
-	}
-
 	// Add migration data
 	for i, migration := range migrations {
 		row := i + 1
@@ -50,19 +47,78 @@ func (mt *MigrationTable) UpdateData(migrations []models.Migration) {
 			formattedTime = "Unknown"
 		}
 		mt.SetCell(row, 1, tview.NewTableCell(formattedTime).SetExpansion(1))
+	}
+}
 
-		// Add error information for failed migrations
-		if mt.title == "Failed" {
-			errorText := migration.FailureReason
-			if errorText == "" {
-				errorText = "Unknown error"
-			}
-			mt.SetCell(row, 2, tview.NewTableCell(errorText).SetExpansion(1))
+// UpdateDataWithStatus updates the table with migration data including status information
+func (mt *MigrationTable) UpdateDataWithStatus(migrations []models.Migration) {
+	mt.Clear()
+
+	// Add headers
+	mt.SetCell(0, 0, tview.NewTableCell("Repository Name").SetExpansion(1))
+	mt.SetCell(0, 1, tview.NewTableCell("Migration ID").SetExpansion(1))
+	mt.SetCell(0, 2, tview.NewTableCell("Status").SetExpansion(1))
+	mt.SetCell(0, 3, tview.NewTableCell("Created At").SetExpansion(1))
+
+	// Add migration data
+	for i, migration := range migrations {
+		row := i + 1
+
+		// Repository Name column
+		mt.SetCell(row, 0, tview.NewTableCell(migration.RepositoryName).SetExpansion(1))
+
+		// Migration ID column
+		mt.SetCell(row, 1, tview.NewTableCell(migration.ID).SetExpansion(1))
+
+		// Add status with color coding
+		status := string(migration.State)
+		statusCell := tview.NewTableCell(status).SetExpansion(1)
+
+		// Color code the status
+		switch {
+		case migration.State.IsSucceeded():
+			statusCell.SetTextColor(tcell.ColorGreen)
+		case migration.State.IsFailed():
+			statusCell.SetTextColor(tcell.ColorRed)
+		case migration.State.IsInProgress():
+			statusCell.SetTextColor(tcell.ColorYellow)
+		case migration.State.IsQueued():
+			statusCell.SetTextColor(tcell.ColorBlue)
+		default:
+			statusCell.SetTextColor(tcell.ColorWhite)
 		}
+		mt.SetCell(row, 2, statusCell)
+
+		// Format the created at time
+		formattedTime := migration.CreatedAt.Format("2006-01-02 15:04:05")
+		if migration.CreatedAt.IsZero() {
+			formattedTime = "Unknown"
+		}
+		mt.SetCell(row, 3, tview.NewTableCell(formattedTime).SetExpansion(1))
 	}
 }
 
 // GetTitle returns the table title
 func (mt *MigrationTable) GetTitle() string {
 	return mt.title
+}
+
+// SetTitleWithOrganization updates the table title to include the organization name
+func (mt *MigrationTable) SetTitleWithOrganization(organization string) {
+	newTitle := fmt.Sprintf("Migration Status - %s", organization)
+	mt.title = newTitle
+	mt.Table.SetTitle(newTitle)
+}
+
+// SetTitleWithOrganizationAndFilter updates the table title to include organization and filter
+func (mt *MigrationTable) SetTitleWithOrganizationAndFilter(organization, filter string) {
+	if filter == "All" || filter == "" {
+		newTitle := fmt.Sprintf("Migration Status - %s", organization)
+		mt.title = newTitle
+		mt.Table.SetTitle(newTitle)
+	} else {
+		newTitle := fmt.Sprintf("Migration Status - %s [%s]", organization, filter)
+		mt.title = newTitle
+		mt.Table.SetTitle(newTitle)
+	}
 }
