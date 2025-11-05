@@ -112,13 +112,13 @@ func (mt *MigrationTable) SetTitleWithOrganization(organization string) {
 
 // SetTitleWithOrganizationAndFilter updates the table title to include organization and filter
 func (mt *MigrationTable) SetTitleWithOrganizationAndFilter(organization, filter string) {
+	var newTitle string
 	if filter == "All" || filter == "" {
-		newTitle := fmt.Sprintf("Migration Status - %s", organization)
-		mt.title = newTitle
-		mt.Table.SetTitle(newTitle)
+		newTitle = fmt.Sprintf("Migration Status - %s", organization)
 	} else {
-		newTitle := fmt.Sprintf("Migration Status - %s [%s]", organization, filter)
-		mt.title = newTitle
-		mt.Table.SetTitle(newTitle)
+		newTitle = fmt.Sprintf("Migration Status - %s [%s]", organization, filter)
 	}
+	mt.title = newTitle
+	mt.Table.SetTitle(newTitle)
+}
 }
