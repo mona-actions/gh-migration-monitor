@@ -1,6 +1,6 @@
 module github.com/mona-actions/gh-migration-monitor
 
-go 1.23.0
+go 1.24.0
 
 toolchain go1.24.5
 
@@ -11,7 +11,7 @@ require (
 	github.com/shurcooL/githubv4 v0.0.0-20230704064427-599ae7bbf278
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
-	golang.org/x/oauth2 v0.30.0
+	golang.org/x/oauth2 v0.33.0
 )
 
 require (
